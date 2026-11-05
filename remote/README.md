@@ -33,7 +33,7 @@ Set `HF_WORKER_A_URL=https://smatt324-qill-project-intelligence.hf.space` in Ver
 
 - `GET /api/providers` checks Space API health.
 - Authenticated `POST /api/providers` dispatches one of the fixed roles through Gradio's call/poll API.
-- Failover occurs only before a task is accepted (unreachable or explicit 429/503). After Gradio returns an event ID, Vercel never replays that task to avoid duplicate work.
+- Failover occurs only after an explicit HTTP 429/503 response. Ambiguous network failures and tasks with a returned event ID are never replayed, avoiding duplicate work.
 
 Space tasks return JSON to the caller and do not write durable checkpoints. The GitHub Actions workflow remains the recurring scheduler and checkpoint writer. Free ZeroGPU quotas and Space availability still apply.
 
