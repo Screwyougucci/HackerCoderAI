@@ -9,6 +9,7 @@ from .agent import start_task, cancel_task
 
 app = FastAPI(title=settings.app_name)
 store = MemoryStore(settings.database_path)
+store.recover_interrupted_tasks()
 
 PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -150,3 +151,13 @@ def task_status(task_id: str):
 def stop_task(task_id: str):
     cancel_task(task_id)
     return {'status': 'cancellation_requested'}
+
+@app.post('/tasks/{task_id}/resume')
+def resume_task(task_id: str):
+    task = store.get_task(task_id)
+    if not task:
+        return JSONResponse({'error': 'Task not found'}, status_code=404)
+    if task['status'] not in ('paused', 'queued'):
+        return JSONResponse({'error': 'Only paused or queued tasks can be resumed.'}, status_code=409)
+    start_task(store, task_id, task['goal'], task['workspace'])
+    return {'status': 'resumed'}
