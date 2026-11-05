@@ -1,6 +1,7 @@
 """Group repeated source findings into useful, reviewable patterns."""
 from collections import Counter, defaultdict
 import re
+from urllib.parse import urlparse
 
 def analyze_patterns(findings: list[dict], search_results: list[dict] | None = None) -> dict:
     by_rule = defaultdict(list)
@@ -25,7 +26,7 @@ def analyze_patterns(findings: list[dict], search_results: list[dict] | None = N
     terms = Counter()
     stop_words = {"about", "after", "again", "also", "could", "from", "have", "into", "more", "other", "their", "there", "these", "this", "those", "using", "where", "which", "while", "with", "would", "your", "than", "then", "when"}
     for item in search_results or []:
-        host = re.sub(r"^www\\.", "", __import__("urllib.parse", fromlist=["urlparse"]).urlparse(item.get("url", "")).hostname or "")
+        host = (urlparse(item.get("url", "")).hostname or "").removeprefix("www.")
         if host:
             domains[host] += 1
         text = str(item.get("title", "")) + " " + str(item.get("snippet", ""))
