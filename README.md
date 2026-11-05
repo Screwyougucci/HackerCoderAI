@@ -8,6 +8,8 @@ A local-first coding and defensive-security assistant powered by an abliterated 
 - Optional live public-web research from the chat UI, with source URLs included in the answer.
 - Automatically trigger web research for clearly time-sensitive or research-oriented prompts, or tick **Use live web research**.
 - Read-only source-code heuristic scanner.
+- Background agent tasks with multi-step planning, progress checkpoints, cancellation, and resume after app restart.
+- Pattern analysis that groups repeated findings by rule and file, and tracks source-domain frequency.
 - CPU-only inference through llama.cpp.
 - Windows executable build through GitHub Actions.
 
@@ -27,7 +29,7 @@ Open `http://127.0.0.1:8001`. The Windows EXE is published as an artifact by the
 
 ## Agent behavior and current limits
 
-HackerCoderAI can take a research or analysis request, gather web search results, reason over them locally, and return a sourced result. It is a bounded first-stage agent, not a full Grok/Operator equivalent yet. It does not currently browse arbitrary pages deeply, execute shell commands, edit project files, install software, send messages, or make purchases. Those capabilities need separate tools, sandboxing, and explicit approval gates before implementation.
+The background agent runs in a worker thread for up to 30 minutes per run and up to 24 model/tool steps per run. It records each step in SQLite, pauses at its budget, and can be resumed from the saved step history. It can search public sources, perform a read-only scan of a user-supplied local workspace, and group repeated heuristic findings into patterns. It is not yet a full Grok/Operator equivalent: it does not deeply browse arbitrary pages, edit files, execute shell commands, install software, send messages, or make purchases. Those capabilities need separate sandboxed tools and explicit approval gates.
 
 The app binds to `127.0.0.1` only. Search queries are sent to DuckDuckGo; your chat transcript and local source files are not sent as search queries. Web snippets are untrusted input and may be incomplete or malicious. Verify important claims against original sources.
 
