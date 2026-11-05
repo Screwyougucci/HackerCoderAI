@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     app_name: str = "HackerCoderAI"
     database_path: str = "data/hackercoderai.sqlite3"
-    model_path: str = ""
+    model_path: str = "data/models/Qwen2.5-3B-Instruct-abliterated-Q4_K_M.gguf"
     model_profile: str = "v4"
     n_ctx: int = 4096
     n_threads: int = 4
