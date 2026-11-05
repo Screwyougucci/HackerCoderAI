@@ -12,6 +12,9 @@ A Vercel-hosted remote control panel for HackerCoderAI.
 
 ## Deploy
 
+Set the sensitive Vercel environment variable `HACKERCODERAI_ACCESS_KEY` for production. The dashboard requires this key before it will call the AI or create a sandbox. Do not commit the key or place it in client-side source. The page accepts it in a password field and sends it only as a request header.
+
+
 Create a Vercel project linked to this repository with the project root set to `remote`. Use Node.js 22 or later. Enable AI Gateway for the project. The deployed Vercel runtime uses its OIDC identity for AI Gateway and Sandbox access; if your team requires an API key instead, configure it as a server-side environment variable in Vercel, never in browser code.
 
 ## Test
