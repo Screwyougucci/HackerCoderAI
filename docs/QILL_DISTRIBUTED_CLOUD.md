@@ -2,50 +2,62 @@
 
 ## Design goal
 
-A strict-$0 compute fleet with provider-aware failover, bounded parallelism, and durable checkpoints. Vercel is the control plane. GitHub Actions remains the scheduled worker pool; optional Hugging Face Spaces can receive individual worker tasks.
+A strict-$0 compute fleet with bounded parallelism, provider-aware failover, and durable GitHub checkpoints. Vercel is the control plane. GitHub Actions is the scheduled worker pool; Hugging Face Gradio Spaces can receive individual worker tasks.
 
 ## Provider pool
 
 | Provider | Function | Cap | State |
 |---|---|---:|---|
 | GitHub Actions standard runners | Main CPU workers | 3 concurrent jobs | Active |
-| Hugging Face Spaces CPU Basic | HTTP worker tasks | 3 concurrent requests per Space | Adapter committed; Space setup required |
+| Hugging Face Gradio ZeroGPU Spaces | Interactive demo and task workers | 3 concurrent tasks per Space | Code ready; deployment requires a write token |
 | Cloudflare Workers Free | Lightweight coordination | 100k requests/day; 10ms CPU/request | Standby |
 
-Hugging Face Jobs are excluded because they are billed. Qill must not invoke paid hardware or paid jobs.
+## Hugging Face Space
 
-## Hugging Face adapter
+The deployable Gradio app is in `providers/hf-space/`. It checks out the public HackerCoderAI repository and exposes the eight fixed worker roles through a Gradio interface. Gradio automatically exposes an `/agents.md` endpoint and a machine-readable `/gradio_api/info` schema.
 
-Deployable source is in `providers/hf-space/`. It exposes `GET /health` and authenticated `POST /run`, accepts only the eight fixed Qill roles, checks out the public project, and runs the existing fixed worker module. Each Space allows at most three concurrent tasks.
+The app accepts only the fixed roles, limits concurrency to three tasks per Space, and applies a four-minute task deadline. The objective is plain text; no arbitrary shell command is accepted. Reports are read-only heuristic results.
 
-Create a Docker Space only if the Hugging Face account allows compute-backed Spaces on free CPU Basic hardware. The default CPU Basic tier has 2 vCPU and 16 GB RAM, and free Spaces can sleep after inactivity. Account/plan eligibility can vary. If the UI asks for a subscription, payment method, or hardware upgrade, stop and do not enable billing.
+### Strict-$0 deployment
 
-Set the Space secret `QILL_WORKER_KEY`. In Vercel project `hackercoderai-remote` (root directory `remote`), set:
-- `HF_WORKER_TOKEN`: same random secret as `QILL_WORKER_KEY`.
-- `HF_WORKER_A_URL`: first Space base URL, such as `https://<namespace>-qill-worker.hf.space`.
-- `HF_WORKER_B_URL`: optional second Space base URL.
+Hugging Face currently states that ordinary Gradio/Docker Spaces on CPU Basic require PRO for personal accounts. Eligible free personal accounts in good standing may host up to two Gradio Spaces on ZeroGPU. Qill does not call a GPU function; ZeroGPU is selected as the free-eligible Gradio hosting option. Do not choose paid CPU/GPU hardware, enable billing, or buy credits. If the account is ineligible, stop and leave the Space undeployed.
 
-Redeploy Vercel after setting the variables. Server-side endpoints:
-- `GET /api/providers` checks configured Space health.
-- `POST /api/providers` dispatches one allowlisted role. Include `x-hackercoderai-key` and a JSON body with `role` and optional `goal`.
+The connected Hugging Face account may not have repository write permission. The helper `providers/hf-space/deploy_space.py` creates the Space under `Smatt324/qill-project-intelligence`, requests `zero-a10g`, and uploads this folder. Run:
 
-The dispatcher tries Space B after Space A only when A is unreachable or returns HTTP 429/503. It does not retry authentication, validation, application errors, or ambiguous timeouts. This is task-level failover, not a durable queue. The existing GitHub Actions workflow remains the recurring scheduler and checkpoint writer.
+```bash
+python -m pip install -U huggingface_hub
+python providers/hf-space/deploy_space.py
+```
 
-## Scheduling and failover
+The script prompts for a write token with hidden input. It does not save the token. If Hugging Face returns HTTP 402, stop; do not upgrade or add payment details. If it returns 401/403, create a write-scoped token and retry.
 
-1. Run no more than three active jobs per provider.
-2. Use only configured providers; unconfigured Spaces are not considered healthy.
-3. On HTTP 429/503 or a connection failure before a response, try the next configured Space.
-4. Do not replay a timed-out request because the remote worker may still be executing.
-5. If all Spaces are unavailable, return an explicit unavailable response. Retry later; this adapter does not claim to persist a queue.
-6. Never purchase credits, upgrade hardware, or bypass provider limits.
+After deployment:
+- Demo: `https://huggingface.co/spaces/Smatt324/qill-project-intelligence`
+- Agent guide: `https://huggingface.co/spaces/Smatt324/qill-project-intelligence/agents.md`
+- Runtime: `https://smatt324-qill-project-intelligence.hf.space`
 
-The GitHub Actions workflow has `max-parallel: 3` and writes checkpoints to `qill-state`. Cross-provider dispatch becomes usable only after at least one eligible Space is deployed and its Vercel variables are configured.
+### Connect to Vercel
 
-## State and safety
+In Vercel project `hackercoderai-remote` (root directory `remote`), set:
+- `HF_WORKER_A_URL=https://smatt324-qill-project-intelligence.hf.space`
+- Optional `HF_WORKER_B_URL` for a second independently created Space.
 
-- GitHub worker output is checkpointed to `qill-state`.
-- Space tasks return JSON to the caller; they do not write the checkpoint branch.
-- Workers perform bounded repository analysis and tests. Findings are heuristic leads, not confirmed vulnerabilities.
-- No arbitrary shell command is accepted, and no code is automatically changed.
-- Credentials belong only in server-side Vercel/Hugging Face secrets, never in Git.
+`HF_WORKER_TOKEN` is optional and only needed if you want authenticated Hub access to a private Space or a token-aware Gradio call. Redeploy Vercel after changing variables.
+
+Vercel endpoints:
+- `GET /api/providers` checks the Gradio API schema.
+- `POST /api/providers` dispatches one fixed role through `/gradio_api/call/run_qill_worker`, then polls the returned event ID.
+
+Failover is safe: Vercel tries the next Space only if the initial submission is rejected with 429/503 or cannot connect before acceptance. Once Gradio returns an event ID, Vercel never replays that task elsewhere, avoiding duplicate work. If polling fails, inspect the Space before retrying.
+
+## Scheduling and checkpoints
+
+The GitHub Actions workflow has `max-parallel: 3` and runs every 30 minutes (plus manual dispatch). The consolidation job writes worker reports to the `qill-state` branch. This is recurring batch execution, not always-on compute. Hugging Face Space tasks return their reports to the caller and do not write the checkpoint branch.
+
+## Safety and cost controls
+
+- No paid model APIs or Hugging Face Jobs are called.
+- No automatic account rotation, quota bypass, or paid fallback.
+- Workers inspect only the public HackerCoderAI repository.
+- No arbitrary shell commands, automatic code edits, or exploit attempts.
+- Static findings are heuristic leads and require human verification.
