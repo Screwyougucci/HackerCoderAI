@@ -34,7 +34,8 @@ jobs:
             exit 1
           fi
 
-          git -c http.extraheader="AUTHORIZATION: Bearer ${HF_TOKEN}" clone \
+          HF_AUTH="$(printf 'Smatt324:%s' "$HF_TOKEN" | base64 -w0)"
+          git -c http.extraheader="AUTHORIZATION: Basic ${HF_AUTH}" clone \
             https://huggingface.co/spaces/Smatt324/HackerCoderAI hf-space
 
           cp providers/hf-space/app.py hf-space/app.py
@@ -50,4 +51,4 @@ jobs:
             exit 0
           fi
           git commit -m "Deploy Qill Gradio app from HackerCoderAI"
-          git -c http.extraheader="AUTHORIZATION: Bearer ${HF_TOKEN}" push origin HEAD:main
+          git -c http.extraheader="AUTHORIZATION: Basic ${HF_AUTH}" push origin HEAD:main
