@@ -1,10 +1,11 @@
 from fastapi import FastAPI, Form
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from .config import settings
 from .memory import MemoryStore
 from .model import generate
 from .scanner import scan_path
 from .web import search_web
+from .agent import start_task, cancel_task
 
 app = FastAPI(title=settings.app_name)
 store = MemoryStore(settings.database_path)
@@ -25,9 +26,13 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#080e18;padding:14px;
 <div class="panel"><h2>Assistant / Agent</h2><p class="muted">Enable live research to search the public web. External changes and risky actions are not performed automatically.</p>
 <form method="post" action="/chat"><textarea name="message" placeholder="Ask a question or give the agent a task..." required></textarea>
 <label><input type="checkbox" name="research" value="yes" style="width:auto"> Use live web research</label><button>Run task</button></form>{%CHAT%}</div>
-<div class="grid"><section class="panel"><h2>Source scanner</h2><p class="muted">Read-only heuristic review of a local directory. Findings need manual validation.</p>
+<div class="grid"><section class="panel"><h2>Long-running agent</h2><p class="muted">Background tasks run in bounded steps and save progress to SQLite. The agent can search public sources, scan a workspace read-only, and detect repeated patterns.</p><form method="post" action="/task"><textarea name="goal" placeholder="Describe the outcome you want the agent to work toward..." required></textarea><input name="workspace" placeholder="Optional local project directory to scan (read-only)"><button>Start background task</button></form><div id="task-status" class="muted">Task progress will appear here after starting.</div></section><section class="panel"><h2>Source scanner</h2><p class="muted">Read-only heuristic review of a local directory. Findings need manual validation.</p>
 <form method="post" action="/scan"><input name="path" placeholder="/path/to/your/project" required><button>Scan directory</button></form>{%SCAN%}</section>
-<section class="panel"><h2>System profile</h2><p>Model profile: <b>PROFILE</b></p><p>Model configured: <b>MODEL</b></p><p class="muted">Public-web research is optional and source-linked.</p></section></div></main></body></html>"""
+<section class="panel"><h2>System profile</h2><p>Model profile: <b>PROFILE</b></p><p>Model configured: <b>MODEL</b></p><p class="muted">Public-web research is optional and source-linked.</p></section></div></main><script>
+const params=new URLSearchParams(location.search), taskId=params.get("task");
+async function refreshTask(){if(!taskId)return;try{const r=await fetch("/tasks/"+encodeURIComponent(taskId));const d=await r.json();document.getElementById("task-status").textContent="Task "+d.status+" — "+d.detail;if(["completed","failed","cancelled","paused"].includes(d.status))return;}catch(e){}setTimeout(refreshTask,2500);}
+refreshTask();
+</script></body></html>"""
 
 last_chat = ""
 last_scan = ""
@@ -118,3 +123,30 @@ def scan(path: str = Form(...)):
     except Exception as exc:
         last_scan = "<pre>Scan error: " + esc(str(exc)) + "</pre>"
     return render()
+
+@app.post('/task', response_class=HTMLResponse)
+def create_task(goal: str = Form(...), workspace: str = Form('')):
+    goal = goal.strip()
+    workspace = workspace.strip()
+    if not goal or len(goal) > 3000:
+        return HTMLResponse('Task goal must contain 1–3000 characters.', status_code=400)
+    if workspace:
+        from pathlib import Path
+        candidate = Path(workspace).expanduser()
+        if not candidate.exists() or not candidate.is_dir():
+            return HTMLResponse('Workspace must be an existing local directory.', status_code=400)
+    task_id = store.create_task(goal, workspace)
+    start_task(store, task_id, goal, workspace)
+    return HTMLResponse('<meta http-equiv="refresh" content="0;url=/?task=' + task_id + '">Task started.')
+
+@app.get('/tasks/{task_id}')
+def task_status(task_id: str):
+    task = store.get_task(task_id)
+    if not task:
+        return JSONResponse({'error': 'Task not found'}, status_code=404)
+    return task
+
+@app.post('/tasks/{task_id}/cancel')
+def stop_task(task_id: str):
+    cancel_task(task_id)
+    return {'status': 'cancellation_requested'}
