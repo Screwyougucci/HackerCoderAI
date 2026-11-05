@@ -101,3 +101,9 @@ class MemoryStore:
             rows = db.execute("SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?",
                               (max(1, min(limit, 50)),)).fetchall()
         return [dict(row) for row in rows]
+
+    def recover_interrupted_tasks(self):
+        with self.connect() as db:
+            db.execute("""UPDATE tasks SET status='paused',
+                          detail='App restarted; saved checkpoint is available to resume.',
+                          updated_at=? WHERE status IN ('queued','running')""", (self.now(),))
