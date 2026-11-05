@@ -1,0 +1,27 @@
+{
+  "role": "source-scanner",
+  "label": "Source Scanner",
+  "status": "completed",
+  "startedAt": "2026-11-05T22:56:52.044953+00:00",
+  "goal": "Review this repository for safe, authorized improvements.",
+  "findings": [
+    {
+      "rule": "PY-EVAL-001",
+      "file": "tests/test_scanner.py",
+      "line": 4,
+      "evidence": "findings = scan_text(\"value = eval(user_input)\\n\")",
+      "advice": "Review dynamic code execution and validate all inputs.",
+      "confidence": "heuristic"
+    },
+    {
+      "rule": "JS-EVAL-001",
+      "file": "tests/test_scanner.py",
+      "line": 4,
+      "evidence": "findings = scan_text(\"value = eval(user_input)\\n\")",
+      "advice": "Review dynamic JavaScript evaluation.",
+      "confidence": "heuristic"
+    }
+  ],
+  "durationSeconds": 0.01,
+  "finishedAt": "2026-11-05T22:56:52.053506+00:00"
+}
