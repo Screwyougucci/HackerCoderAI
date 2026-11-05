@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { generateText } from "ai";
 import { Sandbox } from "@vercel/sandbox";
 
@@ -7,6 +8,16 @@ export const maxDuration = 300;
 const DEFAULT_MODEL = "alibaba/qwen3-coder-30b-a3b";
 
 export async function POST(request: Request) {
+  const expectedKey = process.env.HACKERCODERAI_ACCESS_KEY;
+  const suppliedKey = request.headers.get("x-hackercoderai-key") || "";
+  if (!expectedKey) {
+    return Response.json({ error: "Remote execution is not configured yet." }, { status: 503 });
+  }
+  const expected = Buffer.from(expectedKey);
+  const supplied = Buffer.from(suppliedKey);
+  if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) {
+    return Response.json({ error: "Access denied. Enter the private access key." }, { status: 401 });
+  }
   let body: { goal?: unknown };
   try {
     body = await request.json();
