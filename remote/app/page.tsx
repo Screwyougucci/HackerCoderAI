@@ -93,9 +93,9 @@ export default function Home() {
 
   async function dispatchSpaceBatch() {
     setSpaceBusy(true); setSpaceResults([]); setError("");
-    const roles = ["research-scout", "source-scanner", "test-runner"];
+    const roles = ["research-scout", "source-scanner", "test-runner", "pattern-miner", "validation-reviewer", "documentation-auditor", "regression-watcher", "intelligence-synthesizer"];
     try {
-      const results = await Promise.all(roles.map(async (role) => {
+      const outcomes = await Promise.allSettled(roles.map(async (role) => {
         const response = await fetch("/api/providers", {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-hackercoderai-key": accessKey },
@@ -103,9 +103,14 @@ export default function Home() {
         });
         const result = await response.json();
         if (!response.ok) throw new Error(role + ": " + (result.error || "Dispatch failed"));
-        return role + " → " + (result.dispatchedTo || "Space") + " (" + (result.result?.status || "completed") + ")";
+        return role + " → " + (result.dispatchedTo || "Space") + " (" + (result.result?.result?.status || result.result?.status || "completed") + ", " + (result.result?.durationSeconds ?? "?") + "s)";
       }));
-      setSpaceResults(results);
+      const lines = outcomes.map((outcome, index) => outcome.status === "fulfilled"
+        ? outcome.value
+        : roles[index] + " → FAILED (" + (outcome.reason instanceof Error ? outcome.reason.message : "dispatch failed") + ")");
+      setSpaceResults(lines);
+      const failed = outcomes.filter((outcome) => outcome.status === "rejected").length;
+      if (failed) setError(failed + " of 8 Space tasks failed; successful reports are still shown.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Space dispatch failed.");
     } finally { setSpaceBusy(false); }
@@ -172,11 +177,11 @@ export default function Home() {
           <section className="panel provider-panel">
             <span className="eyebrow">03 / PROVIDERS</span><h2>Compute sources</h2>
             <div className="provider-row"><span className="provider-icon">GH</span><div><b>GitHub Actions</b><small>3 concurrent public-repo jobs</small></div><span className="provider-state active">ACTIVE</span></div>
-            <div className="provider-row"><span className="provider-icon">HF</span><div><b>Hugging Face Spaces</b><small>Gradio ZeroGPU · 3 tasks/Space · A/B failover</small></div><span className="provider-state">{hfStatus}</span></div>
+            <div className="provider-row"><span className="provider-icon">HF</span><div><b>Hugging Face Spaces</b><small>Gradio Space · 3 concurrent tasks · queued role batches</small></div><span className="provider-state">{hfStatus}</span></div>
             <div className="provider-row"><span className="provider-icon">CF</span><div><b>Cloudflare Workers</b><small>Coordinator integration not connected</small></div><span className="provider-state standby">STANDBY</span></div>
-            <button className="secondary-button" disabled={spaceBusy || !accessKey.trim() || !providerData?.configured} onClick={() => void dispatchSpaceBatch()}>{spaceBusy ? "DISPATCHING 3 TASKS…" : "▶ RUN 3 SPACE TASKS"}</button>
+            <button className="secondary-button" disabled={spaceBusy || !accessKey.trim() || !providerData?.configured} onClick={() => void dispatchSpaceBatch()}>{spaceBusy ? "DISPATCHING 8 TASKS…" : "▶ RUN ALL 8 SPACE WORKERS"}</button>
             {spaceResults.map((item) => <p className="hint" key={item}>{item}</p>)}
-            <p className="hint">The button sends three independent roles concurrently. Deploy the Gradio Space and set HF_WORKER_A_URL in Vercel first. Free ZeroGPU quotas and Space availability apply.</p>
+            <p className="hint">Runs all eight fixed roles through the connected Hugging Face Space. The Space queues work with a three-task concurrency limit; partial results are kept if one role fails. GitHub Actions remains the recurring scheduler and checkpoint writer.</p>
           </section>
         </aside>
       </div>
