@@ -81,8 +81,11 @@ export async function POST(request: Request) {
   const pool = providers();
   if (!pool.length) return Response.json({ error: "No Hugging Face Spaces configured. Set HF_WORKER_A_URL and optionally HF_WORKER_B_URL in Vercel." }, { status: 503 });
 
+  const roleIndex = [...ROLES].indexOf(role);
+  const startIndex = roleIndex < 0 ? 0 : roleIndex % pool.length;
+  const orderedPool = pool.slice(startIndex).concat(pool.slice(0, startIndex));
   const attempts: Array<{ provider: string; status: number | string }> = [];
-  for (const provider of pool) {
+  for (const provider of orderedPool) {
     const base = provider.url.replace(/\/$/, "");
     let eventId = "";
     try {
@@ -115,8 +118,9 @@ export async function POST(request: Request) {
       if (error instanceof Error && error.name === "TimeoutError") {
         return Response.json({ error: "Space submission timed out; task acceptance is uncertain, so it was not replayed.", provider: provider.name, attempts }, { status: 504 });
       }
-      attempts.push({ provider: provider.name, status: "unreachable-before-acceptance" });
+      attempts.push({ provider: provider.name, status: "submission-outcome-unknown" });
+      return Response.json({ error: "The Space submission connection failed and acceptance is uncertain. The task was not replayed to avoid duplicate work.", attempts }, { status: 504 });
     }
   }
-  return Response.json({ error: "All configured free Spaces are unavailable or quota-limited. Retry after a Space wakes or its quota resets.", attempts }, { status: 503 });
+  return Response.json({ error: "All configured free Spaces returned an unavailable or quota response. Retry after a Space wakes or its quota resets.", attempts }, { status: 503 });
 }
