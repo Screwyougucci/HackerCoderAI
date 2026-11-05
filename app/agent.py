@@ -32,6 +32,21 @@ def _json_action(raw: str) -> dict:
         raise ValueError("Agent action must be a JSON object.")
     return value
 
+def _serialize_bounded(items: list[dict], max_chars: int) -> str:
+    saved = []
+    for item in items:
+        compact = dict(item)
+        if isinstance(compact.get("snippet"), str):
+            compact["snippet"] = compact["snippet"][:500]
+        if isinstance(compact.get("evidence"), str):
+            compact["evidence"] = compact["evidence"][:200]
+        candidate = saved + [compact]
+        encoded = json.dumps(candidate, ensure_ascii=False)
+        if len(encoded) > max_chars:
+            break
+        saved = candidate
+    return json.dumps(saved, ensure_ascii=False)
+
 def _record(store: MemoryStore, task_id: str, status: str, detail: str = ""):
     store.update_task(task_id, status=status, detail=detail)
 
@@ -110,7 +125,7 @@ def run_task(store: MemoryStore, task_id: str, goal: str, workspace: str = "") -
                     raise ValueError("Search action had no query.")
                 results = search_web(query, max_results=6)
                 search_results.extend(results)
-                result_text = json.dumps(results, ensure_ascii=False)[:6500] if results else "No usable results."
+                result_text = _serialize_bounded(results, 6000) if results else "[]"
                 observations.append("WEB SEARCH: " + query + "\n" + result_text)
                 store.add_task_step(task_id, step, "search_web", "Query: " + query + "\n" + result_text)
             elif kind == "scan_workspace":
@@ -122,7 +137,7 @@ def run_task(store: MemoryStore, task_id: str, goal: str, workspace: str = "") -
                 else:
                     findings = scan_path(workspace)
                     scanned = True
-                    result_text = json.dumps(findings[:100], ensure_ascii=False)[:9000]
+                    result_text = _serialize_bounded(findings[:100], 8500)
                     observations.append(f"WORKSPACE SCAN: {len(findings)} heuristic findings. " + result_text)
                     store.add_task_step(task_id, step, "scan_workspace", f"{len(findings)} heuristic findings.\n{result_text}")
             elif kind == "analyze_patterns":
