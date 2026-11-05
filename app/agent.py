@@ -46,7 +46,17 @@ def run_task(store: MemoryStore, task_id: str, goal: str, workspace: str = "") -
     ]
     findings: list[dict] = []
     search_results: list[dict] = []
-    scanned = any(item.get("action") == "scan_workspace" for item in prior_steps)
+    scanned = False
+    for item in prior_steps:
+        detail = item.get("detail", "")
+        try:
+            if item.get("action") == "scan_workspace" and "\\n" in detail:
+                findings = json.loads(detail.split("\\n", 1)[1])
+                scanned = True
+            elif item.get("action") == "search_web" and "\\n" in detail:
+                search_results.extend(json.loads(detail.split("\\n", 1)[1]))
+        except (ValueError, TypeError):
+            observations.append("A previous result could not be restored from its checkpoint.")
     step_offset = max((int(item.get("step", 0)) for item in prior_steps), default=0)
     _STOP.clear()
     _record(store, task_id, "running", "Starting task and preparing a plan.")
