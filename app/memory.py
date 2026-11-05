@@ -16,6 +16,16 @@ class MemoryStore:
                 id INTEGER PRIMARY KEY, note TEXT NOT NULL UNIQUE,
                 created_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS tasks (
+                id TEXT PRIMARY KEY, goal TEXT NOT NULL, workspace TEXT NOT NULL,
+                status TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS task_steps (
+                id INTEGER PRIMARY KEY, task_id TEXT NOT NULL, step INTEGER NOT NULL,
+                action TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL,
+                UNIQUE(task_id,step)
+            );
             """)
 
     def connect(self):
@@ -59,11 +69,6 @@ class MemoryStore:
         import uuid
         task_id = uuid.uuid4().hex
         with self.connect() as db:
-            db.execute("""CREATE TABLE IF NOT EXISTS tasks (
-                id TEXT PRIMARY KEY, goal TEXT NOT NULL, workspace TEXT NOT NULL,
-                status TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )""")
             db.execute("""INSERT INTO tasks(id,goal,workspace,status,detail,created_at,updated_at)
                           VALUES(?,?,?,?,?,?,?)""",
                        (task_id, goal, workspace, "queued", "Queued", self.now(), self.now()))
@@ -87,11 +92,6 @@ class MemoryStore:
 
     def add_task_step(self, task_id: str, step: int, action: str, detail: str):
         with self.connect() as db:
-            db.execute("""CREATE TABLE IF NOT EXISTS task_steps (
-                id INTEGER PRIMARY KEY, task_id TEXT NOT NULL, step INTEGER NOT NULL,
-                action TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL,
-                UNIQUE(task_id,step)
-            )""")
             db.execute("""INSERT OR REPLACE INTO task_steps(task_id,step,action,detail,created_at)
                           VALUES(?,?,?,?,?)""",
                        (task_id, step, action, detail[:12000], self.now()))
