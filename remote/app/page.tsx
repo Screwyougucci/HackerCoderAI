@@ -11,6 +11,7 @@ type RunResult = {
 
 export default function Home() {
   const [goal, setGoal] = useState("Explain how this remote AI runner works and suggest a safe first coding task.");
+  const [accessKey, setAccessKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<RunResult | null>(null);
 
@@ -20,7 +21,7 @@ export default function Home() {
     try {
       const response = await fetch("/api/run", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-hackercoderai-key": accessKey },
         body: JSON.stringify({ goal }),
       });
       const data = await response.json();
@@ -44,8 +45,9 @@ export default function Home() {
         <section className="panel">
           <h2>Start a cloud AI run</h2>
           <p className="muted">Describe a task. The model will analyze it, then a fresh Vercel Sandbox will run a contained environment check.</p>
+          <input className="key-input" type="password" value={accessKey} onChange={(event) => setAccessKey(event.target.value)} placeholder="Private access key" aria-label="Private access key" autoComplete="off" />
           <textarea value={goal} onChange={(event) => setGoal(event.target.value)} maxLength={2000} aria-label="Task description" />
-          <button onClick={runTask} disabled={busy || !goal.trim()}>{busy ? "Starting cloud run…" : "Run AI + sandbox test"}</button>
+          <button onClick={runTask} disabled={busy || !goal.trim() || !accessKey.trim()}>{busy ? "Starting cloud run…" : "Run AI + sandbox test"}</button>
           {result && <div className="result" aria-live="polite">
             {result.error ? "ERROR: " + result.error : ""}
             {result.model ? "MODEL: " + result.model + "\n\n" : ""}
