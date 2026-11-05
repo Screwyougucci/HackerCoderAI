@@ -171,12 +171,12 @@ export default function Home() {
 
           <section className="panel provider-panel">
             <span className="eyebrow">03 / PROVIDERS</span><h2>Compute sources</h2>
-            <div className="provider-row"><span className="provider-icon">GH</span><div><b>GitHub Actions</b><small>8 parallel public-repo runners</small></div><span className="provider-state active">ACTIVE</span></div>
-            <div className="provider-row"><span className="provider-icon">HF</span><div><b>Hugging Face Spaces</b><small>Up to 3 tasks per Space · A/B failover</small></div><span className="provider-state">{hfStatus}</span></div>
+            <div className="provider-row"><span className="provider-icon">GH</span><div><b>GitHub Actions</b><small>3 concurrent public-repo jobs</small></div><span className="provider-state active">ACTIVE</span></div>
+            <div className="provider-row"><span className="provider-icon">HF</span><div><b>Hugging Face Spaces</b><small>Gradio ZeroGPU · 3 tasks/Space · A/B failover</small></div><span className="provider-state">{hfStatus}</span></div>
             <div className="provider-row"><span className="provider-icon">CF</span><div><b>Cloudflare Workers</b><small>Coordinator integration not connected</small></div><span className="provider-state standby">STANDBY</span></div>
             <button className="secondary-button" disabled={spaceBusy || !accessKey.trim() || !providerData?.configured} onClick={() => void dispatchSpaceBatch()}>{spaceBusy ? "DISPATCHING 3 TASKS…" : "▶ RUN 3 SPACE TASKS"}</button>
             {spaceResults.map((item) => <p className="hint" key={item}>{item}</p>)}
-            <p className="hint">The button sends three independent roles concurrently. Spaces must be deployed and configured in Vercel first. Free Spaces may sleep.</p>
+            <p className="hint">The button sends three independent roles concurrently. Deploy the Gradio Space and set HF_WORKER_A_URL in Vercel first. Free ZeroGPU quotas and Space availability apply.</p>
           </section>
         </aside>
       </div>
