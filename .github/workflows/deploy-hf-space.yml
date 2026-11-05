@@ -1,0 +1,53 @@
+name: Deploy Qill to Hugging Face Space
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "providers/hf-space/**"
+      - ".github/workflows/deploy-hf-space.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out HackerCoderAI
+        uses: actions/checkout@v4
+
+      - name: Verify Space files
+        run: |
+          test -s providers/hf-space/app.py
+          test -s providers/hf-space/requirements.txt
+          test -s providers/hf-space/README.md
+
+      - name: Publish Gradio app to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HF_TOKEN:-}" ]; then
+            echo "Missing repository secret HF_TOKEN. Add a Hugging Face write token in GitHub Actions secrets."
+            exit 1
+          fi
+
+          git -c http.extraheader="AUTHORIZATION: Bearer ${HF_TOKEN}" clone \
+            https://huggingface.co/spaces/Smatt324/HackerCoderAI hf-space
+
+          cp providers/hf-space/app.py hf-space/app.py
+          cp providers/hf-space/requirements.txt hf-space/requirements.txt
+          cp providers/hf-space/README.md hf-space/README.md
+
+          cd hf-space
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.py requirements.txt README.md
+          if git diff --cached --quiet; then
+            echo "Hugging Face Space already has the latest files."
+            exit 0
+          fi
+          git commit -m "Deploy Qill Gradio app from HackerCoderAI"
+          git -c http.extraheader="AUTHORIZATION: Bearer ${HF_TOKEN}" push origin HEAD:main
