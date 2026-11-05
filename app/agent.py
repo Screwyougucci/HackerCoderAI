@@ -2,7 +2,6 @@
 import json
 import threading
 import time
-from pathlib import Path
 
 from .memory import MemoryStore
 from .model import generate
@@ -58,7 +57,7 @@ def run_task(store: MemoryStore, task_id: str, goal: str, workspace: str = "") -
         except (ValueError, TypeError):
             observations.append("A previous result could not be restored from its checkpoint.")
     step_offset = max((int(item.get("step", 0)) for item in prior_steps), default=0)
-    _STOP.clear()
+    stop_event = _STOP_EVENTS.setdefault(task_id, threading.Event())
     _record(store, task_id, "running", "Starting task and preparing a plan.")
     system = (
         "You are HackerCoderAI, an autonomous but bounded coding and defensive-security agent. "
