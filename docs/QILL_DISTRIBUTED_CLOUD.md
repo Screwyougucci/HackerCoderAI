@@ -48,7 +48,7 @@ Vercel endpoints:
 - `GET /api/providers` checks the Gradio API schema.
 - `POST /api/providers` dispatches one fixed role through `/gradio_api/call/run_qill_worker`, then polls the returned event ID.
 
-Failover is safe: Vercel tries the next Space only if the initial submission is rejected with 429/503 or cannot connect before acceptance. Once Gradio returns an event ID, Vercel never replays that task elsewhere, avoiding duplicate work. If polling fails, inspect the Space before retrying.
+Failover is safe: Vercel distributes roles across configured Spaces and tries the next Space only after an explicit HTTP 429/503 response. Ambiguous network failures and tasks with a returned event ID are never replayed, avoiding duplicate work. If polling fails, inspect the Space before retrying.
 
 ## Scheduling and checkpoints
 
