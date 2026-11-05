@@ -38,9 +38,16 @@ def _record(store: MemoryStore, task_id: str, status: str, detail: str = ""):
 
 def run_task(store: MemoryStore, task_id: str, goal: str, workspace: str = "") -> None:
     started = time.monotonic()
-    observations: list[str] = []
+    prior = store.get_task(task_id) or {}
+    prior_steps = prior.get("steps", [])
+    observations: list[str] = [
+        f"Checkpoint from step {item['step']} ({item['action']}): {item['detail'][:2500]}"
+        for item in prior_steps[-12:]
+    ]
     findings: list[dict] = []
     search_results: list[dict] = []
+    scanned = any(item.get("action") == "scan_workspace" for item in prior_steps)
+    step_offset = max((int(item.get("step", 0)) for item in prior_steps), default=0)
     _STOP.clear()
     _record(store, task_id, "running", "Starting task and preparing a plan.")
     system = (
@@ -56,8 +63,8 @@ def run_task(store: MemoryStore, task_id: str, goal: str, workspace: str = "") -
         "Work toward the user's goal, avoid repeating completed searches, and finish when evidence is sufficient. "
         "Return JSON only."
     )
-    scanned = False
-    for step in range(1, MAX_STEPS + 1):
+    for iteration in range(1, MAX_STEPS + 1):
+        step = step_offset + iteration
         if stop_event.is_set():
             _record(store, task_id, "cancelled", "Stopped by user.")
             return
@@ -121,7 +128,7 @@ def run_task(store: MemoryStore, task_id: str, goal: str, workspace: str = "") -
             observations.append("TOOL/MODEL ERROR: " + message)
             store.add_task_step(task_id, step, "error", message)
             _record(store, task_id, "running", f"Step {step} had an error; continuing cautiously.")
-    partial = "Step budget reached. Partial progress:\n" + "\n\n".join(observations[-8:])
+    partial = "Step budget reached for this run. Checkpoint saved; resume to continue.\n" + "\n\n".join(observations[-8:])
     _record(store, task_id, "paused", partial)
 
 def start_task(store: MemoryStore, task_id: str, goal: str, workspace: str = "") -> None:
