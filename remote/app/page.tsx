@@ -11,6 +11,7 @@ type Worker = {
   regression?: { currentCandidates?: number; newCandidates?: number };
   recommendation?: string;
 };
+type ProviderData = { providers?: { name: string; status: string }[]; configured?: boolean };
 type DashboardData = {
   ok?: boolean; workflowState?: string; error?: string;
   latestRun?: { id: number; runNumber: number; status: string; conclusion: string | null; event: string; createdAt: string; url: string }[];
@@ -38,6 +39,9 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [providerData, setProviderData] = useState<ProviderData | null>(null);
+  const [spaceBusy, setSpaceBusy] = useState(false);
+  const [spaceResults, setSpaceResults] = useState<string[]>([]);
 
   const refresh = useCallback(async () => {
     try {
@@ -45,6 +49,10 @@ export default function Home() {
       const json = await response.json();
       setData(json);
       if (!response.ok) setError(json.error || "Status request failed.");
+      try {
+        const providerResponse = await fetch("/api/providers", { cache: "no-store" });
+        setProviderData(await providerResponse.json());
+      } catch { setProviderData(null); }
     } catch {
       setError("Dashboard could not reach the worker registry.");
     }
@@ -82,6 +90,30 @@ export default function Home() {
       setError(err instanceof Error ? err.message : "Control request failed.");
     } finally { setBusy(false); }
   }
+
+  async function dispatchSpaceBatch() {
+    setSpaceBusy(true); setSpaceResults([]); setError("");
+    const roles = ["research-scout", "source-scanner", "test-runner"];
+    try {
+      const results = await Promise.all(roles.map(async (role) => {
+        const response = await fetch("/api/providers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-hackercoderai-key": accessKey },
+          body: JSON.stringify({ role, goal }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(role + ": " + (result.error || "Dispatch failed"));
+        return role + " → " + (result.dispatchedTo || "Space") + " (" + (result.result?.status || "completed") + ")";
+      }));
+      setSpaceResults(results);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Space dispatch failed.");
+    } finally { setSpaceBusy(false); }
+  }
+
+  const hfStatus = providerData?.providers?.length
+    ? providerData.providers.map((p) => p.status).join(" / ").toUpperCase()
+    : "NOT CONFIGURED";
 
   return (
     <main className="shell">
@@ -140,9 +172,11 @@ export default function Home() {
           <section className="panel provider-panel">
             <span className="eyebrow">03 / PROVIDERS</span><h2>Compute sources</h2>
             <div className="provider-row"><span className="provider-icon">GH</span><div><b>GitHub Actions</b><small>8 parallel public-repo runners</small></div><span className="provider-state active">ACTIVE</span></div>
-            <div className="provider-row"><span className="provider-icon">HF</span><div><b>Hugging Face</b><small>Optional free Space adapter</small></div><span className="provider-state standby">STANDBY</span></div>
-            <div className="provider-row"><span className="provider-icon">CF</span><div><b>Cloudflare Workers</b><small>Optional lightweight coordinator</small></div><span className="provider-state standby">STANDBY</span></div>
-            <p className="hint">Only GitHub runners are activated in this build. HF and Cloudflare need their own free resources and credentials before they can join the fleet.</p>
+            <div className="provider-row"><span className="provider-icon">HF</span><div><b>Hugging Face Spaces</b><small>Up to 3 tasks per Space · A/B failover</small></div><span className="provider-state">{hfStatus}</span></div>
+            <div className="provider-row"><span className="provider-icon">CF</span><div><b>Cloudflare Workers</b><small>Coordinator integration not connected</small></div><span className="provider-state standby">STANDBY</span></div>
+            <button className="secondary-button" disabled={spaceBusy || !accessKey.trim() || !providerData?.configured} onClick={() => void dispatchSpaceBatch()}>{spaceBusy ? "DISPATCHING 3 TASKS…" : "▶ RUN 3 SPACE TASKS"}</button>
+            {spaceResults.map((item) => <p className="hint" key={item}>{item}</p>)}
+            <p className="hint">The button sends three independent roles concurrently. Spaces must be deployed and configured in Vercel first. Free Spaces may sleep.</p>
           </section>
         </aside>
       </div>
