@@ -1,40 +1,56 @@
 ---
-title: Qill Worker
+title: Qill Project Intelligence
 emoji: 🛰️
 colorFrom: gray
 colorTo: red
-sdk: docker
-app_port: 7860
+sdk: gradio
+sdk_version: 5.33.0
+app_file: app.py
 pinned: false
+license: mit
+short_description: Read-only multi-role analysis demo for HackerCoderAI
 ---
 
-# Qill Hugging Face Space worker
+# ◈ Qill · HackerCoderAI
 
-A bounded, authenticated worker adapter for the Qill project. It accepts only the eight fixed worker roles from the public HackerCoderAI repository. It does not accept shell commands or arbitrary repository URLs.
+An interactive Gradio demo for the public [Screwyougucci/HackerCoderAI](https://github.com/Screwyougucci/HackerCoderAI) project.
 
-## Space secrets
+Choose one of eight fixed worker roles, enter a plain-language objective, and inspect a structured JSON report.
 
-Set `QILL_WORKER_KEY` in **Settings → Variables and secrets**. Use a long random value. Put the exact same value in Vercel as `HF_WORKER_TOKEN`.
+## Demo capabilities
 
-Keep the Space on free CPU Basic hardware. Do not select upgraded CPU/GPU hardware or enable billing. CPU Basic Spaces can sleep after inactivity, so the Vercel coordinator will treat a sleeping/unavailable Space as unavailable and try the next configured provider.
+- Research Scout — searches public technical references.
+- Source Scanner — identifies selected risky coding patterns.
+- Test Runner — runs the repository's bounded unit tests.
+- Pattern Miner — summarizes historical checkpoint patterns.
+- Validation Reviewer — marks heuristic findings for human review.
+- Documentation Auditor — checks README links and documentation structure.
+- Regression Watcher — compares current candidates with the saved checkpoint.
+- Intelligence Synthesizer — builds a small project inventory.
 
-## API
+## Runtime limits and safety
 
-- `GET /health` — provider readiness and current concurrency.
-- `POST /run` — authenticated task execution.
+- Maximum three concurrent tasks per Space.
+- Four-minute worker deadline.
+- Public repository only; source is checked out from the project's public main branch.
+- User objectives are treated as data, never as shell commands.
+- No arbitrary shell execution, file writes, external target scans, or automatic code changes.
+- Findings are heuristic leads, not confirmed vulnerabilities.
 
-Example request:
+## Hugging Face setup
 
-```http
-POST /run
-X-Qill-Worker-Key: <QILL_WORKER_KEY>
-Content-Type: application/json
+This is a **Gradio Space**, not a Docker Space. Copy the contents of this directory to the root of a new Space repository.
 
-{"role":"source-scanner","goal":"Review the repository for safe, authorized improvements."}
-```
+For a strict-$0 setup, use an eligible **ZeroGPU** Space on a free personal account, if the ZeroGPU option is available. Hugging Face currently permits eligible free personal accounts in good standing to host up to two ZeroGPU Spaces. Do not choose CPU Upgrade, paid GPU hardware, or enable billing. A regular Gradio Space on CPU Basic requires PRO for personal accounts.
 
-The service permits at most three concurrent tasks, has a four-minute task deadline, and only invokes the checked-in `workers/run_worker.py` with a fixed role allowlist. Results are returned as JSON. The service is stateless; durable checkpoints remain the responsibility of the GitHub Actions consolidation workflow.
+After deployment, Gradio automatically exposes an `/agents.md` endpoint describing the API schema and call/poll procedure. The demo endpoint is named `run_qill_worker`.
 
-## Deploy
+## Connect to Vercel
 
-Create a new **Docker Space** in your Hugging Face account and upload the contents of this directory. Choose only CPU Basic if your account permits free compute Spaces. Current Hugging Face account/plan eligibility may restrict creating compute-backed Docker Spaces; if the UI requires a paid plan, stop and do not upgrade. The adapter is not active until the Space URL is configured in Vercel.
+Set `HF_WORKER_A_URL` in Vercel to the Space runtime URL, for example:
+
+`https://<your-username>-qill-project-intelligence.hf.space`
+
+Optionally set `HF_WORKER_B_URL` to a second Space. Redeploy Vercel after changing environment variables. The Vercel API uses the Gradio call/poll interface and tries the next Space only when a provider is unreachable or rejects a request with a quota/unavailable response.
+
+The browser demo is public and operates only on this public repository. Do not add private source code or secrets to the demo.
