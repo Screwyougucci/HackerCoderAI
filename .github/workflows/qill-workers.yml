@@ -1,0 +1,118 @@
+name: Qill Distributed Workers
+
+on:
+  workflow_dispatch:
+    inputs:
+      goal:
+        description: Research or engineering goal for this cycle
+        required: false
+        type: string
+        default: "Review this repository for safe, authorized improvements."
+  schedule:
+    - cron: "*/30 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qill-distributed-cycle
+  cancel-in-progress: false
+
+jobs:
+  workers:
+    name: "Qill / ${{ matrix.label }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        include:
+          - role: research-scout
+            label: Research Scout
+          - role: source-scanner
+            label: Source Scanner
+          - role: test-runner
+            label: Test Runner
+          - role: pattern-miner
+            label: Pattern Miner
+          - role: validation-reviewer
+            label: Validation Reviewer
+          - role: documentation-auditor
+            label: Documentation Auditor
+          - role: regression-watcher
+            label: Regression Watcher
+          - role: intelligence-synthesizer
+            label: Intelligence Synthesizer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run bounded worker
+        env:
+          QILL_GOAL: ${{ inputs.goal || 'Review this repository for safe, authorized improvements.' }}
+          QILL_ROLE: ${{ matrix.role }}
+        run: python workers/run_worker.py --role "$QILL_ROLE" --goal "$QILL_GOAL" --output "out/worker-$QILL_ROLE.json"
+      - name: Upload worker checkpoint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qill-worker-${{ matrix.role }}
+          path: out/worker-${{ matrix.role }}.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  consolidate:
+    name: Qill / Consolidate and checkpoint
+    needs: workers
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: qill-worker-*
+          path: qill-artifacts
+          merge-multiple: true
+      - name: Build shared checkpoint
+        run: python workers/aggregate.py --input qill-artifacts --output /tmp/qill-state
+        env:
+          QILL_GOAL: ${{ inputs.goal || 'Scheduled repository research and quality cycle.' }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+      - name: Persist checkpoint on qill-state branch
+        run: |
+          git config user.name "qill-worker[bot]"
+          git config user.email "qill-worker[bot]@users.noreply.github.com"
+          git fetch origin qill-state:refs/remotes/origin/qill-state || true
+          if git show-ref --verify --quiet refs/remotes/origin/qill-state; then
+            git checkout -B qill-state origin/qill-state
+          else
+            git checkout --orphan qill-state
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+          mkdir -p state/workers
+          cp /tmp/qill-state/latest.json state/latest.json
+          cp /tmp/qill-state/workers/*.json state/workers/ 2>/dev/null || true
+          git add state
+          if git diff --cached --quiet; then
+            echo "Checkpoint unchanged; no commit needed."
+          else
+            git commit -m "Qill checkpoint run $GITHUB_RUN_NUMBER"
+            git push origin HEAD:qill-state
+          fi
