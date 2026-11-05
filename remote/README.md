@@ -1,30 +1,41 @@
 # Qill Distributed Control Center
 
-Vercel-hosted dashboard for eight bounded GitHub Actions worker roles, with an optional authenticated Hugging Face Space worker adapter.
+Vercel-hosted dashboard for eight bounded GitHub Actions worker roles, with an optional Hugging Face Gradio Space worker pool.
 
 ## Zero-cost design
 
-- Dashboard: Next.js on the existing Vercel Hobby project.
+- Dashboard/control plane: Next.js on the existing Vercel project.
 - Main workers: standard GitHub-hosted Ubuntu runners, max-parallel 3, on a public repository.
-- Schedule: one bounded worker cycle every 30 minutes, plus manual dispatch.
+- Schedule: bounded worker cycle every 30 minutes, plus manual dispatch.
 - Memory: GitHub worker checkpoint JSON is committed to the dedicated `qill-state` branch.
-- Optional Space workers: `providers/hf-space/` contains a Docker Space adapter with a three-request concurrency cap and fixed role allowlist.
+- Optional Space workers: `providers/hf-space/` contains a Gradio demo and API endpoint for all eight fixed worker roles, with at most three concurrent tasks per Space.
 - No paid model API or Hugging Face Jobs are called.
-- Workers run bounded repository scans and tests; no arbitrary shell input or automatic code changes.
 
 ## GitHub controls
 
 In Vercel project `hackercoderai-remote`, root directory `remote`, configure `HACKERCODERAI_ACCESS_KEY` and `GITHUB_TOKEN`. The GitHub token should be fine-grained and scoped only to `Screwyougucci/HackerCoderAI`, with Actions read/write permission.
 
-## Optional Hugging Face Space workers
+## Optional Hugging Face Space
 
-The adapter code is in `providers/hf-space/`. Create a Docker Space only if your account permits compute-backed Spaces on free CPU Basic. CPU Basic has 2 vCPU and 16 GB RAM, but free Spaces can sleep. Account eligibility for compute-backed Docker/Gradio Spaces can vary. If the UI asks for a subscription, payment method, or upgraded hardware, stop and do not enable billing.
+The Gradio Space files are in `providers/hf-space/`. Hugging Face currently requires PRO for ordinary CPU Basic Gradio/Docker Spaces, but eligible free personal accounts may host up to two Gradio ZeroGPU Spaces. Qill does not use a GPU function. Do not enable paid hardware or billing.
 
-Set `QILL_WORKER_KEY` as a Space secret. In Vercel, set `HF_WORKER_TOKEN` to the same secret, `HF_WORKER_A_URL` to the first Space base URL, and optionally `HF_WORKER_B_URL` to a second Space URL. Redeploy Vercel.
+To deploy under the connected account `Smatt324`:
+1. Install `huggingface_hub`: `python -m pip install -U huggingface_hub`.
+2. Run `python providers/hf-space/deploy_space.py`.
+3. Enter a Hugging Face write token at the hidden prompt. The script does not save it.
+4. If Hugging Face returns HTTP 402, stop; do not upgrade or add payment details.
 
-`GET /api/providers` reports Space health. Authenticated `POST /api/providers` accepts one of the eight fixed roles and tries the next Space when the previous one is unreachable or returns HTTP 429/503. It does not retry timeouts or application/authentication errors because those could duplicate work. Include `x-hackercoderai-key` with the dashboard access key.
+Expected demo: `https://huggingface.co/spaces/Smatt324/qill-project-intelligence`. Gradio automatically exposes `/agents.md` and `/gradio_api/info`.
 
-Space tasks return JSON to the caller and do not write durable checkpoints. The existing GitHub Actions workflow remains the scheduled runner and checkpoint writer. This is not an always-on queue; free CPU Basic Spaces may sleep.
+## Connect to Vercel
+
+Set `HF_WORKER_A_URL=https://smatt324-qill-project-intelligence.hf.space` in Vercel. Optionally set `HF_WORKER_B_URL` to a second Space. `HF_WORKER_TOKEN` is optional for private/token-aware calls. Redeploy Vercel.
+
+- `GET /api/providers` checks Space API health.
+- Authenticated `POST /api/providers` dispatches one of the fixed roles through Gradio's call/poll API.
+- Failover occurs only before a task is accepted (unreachable or explicit 429/503). After Gradio returns an event ID, Vercel never replays that task to avoid duplicate work.
+
+Space tasks return JSON to the caller and do not write durable checkpoints. The GitHub Actions workflow remains the recurring scheduler and checkpoint writer. Free ZeroGPU quotas and Space availability still apply.
 
 ## Workflow and checkpoints
 
@@ -33,12 +44,6 @@ Workflow: `.github/workflows/qill-workers.yml`
 - Eight fixed roles: research scout, source scanner, test runner, pattern miner, validation reviewer, documentation auditor, regression watcher, intelligence synthesizer.
 - Each job has a five-minute hard timeout; the test command itself has a 75-second timeout.
 - Consolidation writes the latest checkpoint and per-worker JSON to `qill-state`.
-- Scheduled cycles run every 30 minutes. GitHub may delay scheduled events during high load; this is recurring batch execution, not always-on compute.
-
-## Local checks
-
-    python -m py_compile workers/run_worker.py workers/aggregate.py
-    python workers/run_worker.py --role source-scanner --goal "Review this repository" --output /tmp/qill-worker.json
-    python workers/aggregate.py --input /tmp/qill-empty --output /tmp/qill-state
+- Scheduled cycles run every 30 minutes. This is recurring batch execution, not always-on compute.
 
 Candidate findings are heuristic leads, not confirmed vulnerabilities. Validate them manually before making changes.
