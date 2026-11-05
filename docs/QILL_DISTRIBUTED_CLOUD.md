@@ -1,42 +1,44 @@
 # Qill distributed cloud architecture
 
-## Current deployment slice
+## Design goal
 
-Qill uses Vercel as the control plane and GitHub Actions as the first real compute provider. Eight independent standard Ubuntu runner VMs execute bounded worker jobs in parallel. The workflow is scheduled every 30 minutes and can also be dispatched manually.
+A $0 compute fleet with provider-aware failover, bounded parallelism, and durable checkpoints. Vercel is the control plane. The worker pool is composed of independently limited providers.
 
-| Provider | Role | State |
-|---|---|---|
-| Vercel Hobby | Dashboard and control API | Existing project, auto-deploys from remote/ |
-| GitHub Actions | Eight ephemeral worker VMs | Active when workflow is enabled |
-| Hugging Face Spaces | Optional model/inference adapter | Standby; requires a free eligible Space and quota |
-| Cloudflare Workers | Optional lightweight coordination adapter | Standby; requires user deployment |
+## Provider pool
 
-GitHub's public-repository standard runners are documented as free and unlimited. This depends on keeping the repository public and using standard runners, not larger paid runners. The worker VMs are temporary: they are created for a job and discarded after it completes.
+| Provider | Function | Cap | State |
+|---|---|---:|---|
+| GitHub Actions standard runners | Main CPU workers | 3 concurrent jobs | Active |
+| Hugging Face Spaces CPU Basic | Lightweight HTTP workers | 2–3 concurrent requests per Space | Requires Space deployment |
+| Hugging Face ZeroGPU | Short GPU inference bursts | At most 2 free Spaces per eligible personal account; 5 GPU minutes/day | Optional, quota-limited |
+| Cloudflare Workers Free | Queue routing, status, lightweight coordination | 100k requests/day; 10ms CPU/request | Standby |
 
-## Eight worker roles
+**Hugging Face Jobs are excluded:** CPU Basic Jobs cost $0.01/hour. Qill must not invoke Jobs or any paid flavor under the strict-$0 requirement.
 
-1. Research Scout — queries public search for a supplied objective and records source links/snippets.
-2. Source Scanner — read-only heuristic scan of the checked-out repository.
-3. Test Runner — runs the repository's unittest suite with a strict timeout.
-4. Pattern Miner — groups findings from the previous checkpoint.
-5. Validation Reviewer — labels scanner candidates as requiring human verification.
-6. Documentation Auditor — checks README/docs presence and relative links.
-7. Regression Watcher — compares current candidates with the prior checkpoint.
-8. Intelligence Synthesizer — records project inventory and next-step recommendation.
+## Scheduling and failover
 
-A ninth, lightweight consolidation job merges artifacts and writes a checkpoint. It is orchestration, not an extra research worker.
+1. Divide the eight worker roles into bounded jobs.
+2. Run no more than three active jobs on each provider at a time.
+3. Select only providers marked healthy and with remaining documented free quota.
+4. When a provider reports quota exhaustion, stop dispatching new work to it and route the next queued task to the next eligible provider.
+5. If a Space sleeps or is temporarily unavailable, defer it and use another healthy provider.
+6. Do not treat authentication errors, malformed payloads, or code failures as quota exhaustion.
+7. If all providers are unavailable, retain the queue and resume after a legitimate reset/wake event. Never purchase credits, upgrade hardware, create extra accounts, or bypass provider limits.
 
-## Persistence
+The current GitHub Actions workflow has max-parallel: 3. This is the live concurrency cap for the only active compute provider. Space endpoints are not connected yet, so cross-provider failover is not active.
 
-Worker artifacts are merged into state/latest.json and state/workers/*.json on the dedicated qill-state branch. The dashboard reads this public checkpoint. A new worker cycle can use the last checkpoint as context.
+## Free-tier facts
 
-## Limits and guardrails
+- GitHub standard hosted runners are free and unlimited for public repositories. The project must remain public and use standard runners.
+- Hugging Face CPU Basic Spaces have 2 vCPU and 16 GB RAM, but free Spaces can sleep when unused.
+- Free personal Hugging Face accounts in good standing can host up to two ZeroGPU Spaces. Free account ZeroGPU usage quota is five GPU minutes per day.
+- Hugging Face Jobs are billed per minute; CPU Basic is $0.01/hour.
+- Cloudflare Workers Free provides 100,000 requests/day and 10 ms CPU per request, making it suitable for routing/health APIs rather than sustained model inference.
 
-- No paid Vercel Sandbox or AI Gateway calls are made by this design.
-- No payment method or paid fallback is configured.
-- No model-generated shell commands are executed.
-- Source scanning is heuristic and read-only.
-- Tests run only against this repository in ephemeral GitHub-hosted runners.
-- The research worker stores links and snippets; it does not treat web content as instructions.
-- External provider adapters remain inactive until their free resources are explicitly deployed.
-- GitHub schedules are best-effort and may start late. The system is continuous in recurring cycles, not an always-on process.
+## State and safety
+
+- Worker output is checkpointed to the dedicated qill-state branch.
+- Workers run bounded, read-only repository scans and tests.
+- Findings are heuristic leads, not confirmed vulnerabilities.
+- No model-generated shell commands are executed and no code is automatically changed.
+- Provider credentials must be stored as server-side secrets in Vercel, never committed to Git.
