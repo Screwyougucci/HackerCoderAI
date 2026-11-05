@@ -12,12 +12,14 @@ from .web import search_web
 
 MAX_STEPS = 24
 MAX_SECONDS = 30 * 60
-_STOP = threading.Event()
+_STOP_EVENTS: dict[str, threading.Event] = {}
 _LOCK = threading.Lock()
 _WORKERS: dict[str, threading.Thread] = {}
 
 def cancel_task(task_id: str) -> None:
-    _STOP.set()
+    event = _STOP_EVENTS.get(task_id)
+    if event:
+        event.set()
 
 def _json_action(raw: str) -> dict:
     text = raw.strip()
@@ -56,7 +58,7 @@ def run_task(store: MemoryStore, task_id: str, goal: str, workspace: str = "") -
     )
     scanned = False
     for step in range(1, MAX_STEPS + 1):
-        if _STOP.is_set():
+        if stop_event.is_set():
             _record(store, task_id, "cancelled", "Stopped by user.")
             return
         if time.monotonic() - started > MAX_SECONDS:
@@ -127,4 +129,5 @@ def start_task(store: MemoryStore, task_id: str, goal: str, workspace: str = "")
         thread = threading.Thread(target=run_task, args=(store, task_id, goal, workspace),
                                   daemon=True, name=f"agent-{task_id[:8]}")
         _WORKERS[task_id] = thread
+        _STOP_EVENTS[task_id] = threading.Event()
         thread.start()
