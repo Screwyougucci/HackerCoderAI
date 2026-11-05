@@ -1,81 +1,72 @@
 # HackerCoderAI
 
-**Offline-first coding and defensive security assistant** for Windows, Linux, and WSL2.
+**Local-first coding and defensive security assistant** for Windows, Linux, and WSL2.
 
-HackerCoderAI is a local project, separate from DarthLinux. It is designed to run on CPU-only systems and keeps chat history and user-approved memories in a local SQLite database. It includes two model profiles:
+## Model
 
-| Profile | GGUF quantization | Purpose |
-|---|---|---|
-| **v2** | Q2_K | Smallest footprint; use when memory is tight. Lower answer quality. |
-| **v4** | Q4_K_M | Better coding and analysis quality; recommended default. |
+The default model is **Qwen2.5-3B-Instruct-abliterated**, using the Q4_K_M GGUF quantization. It is an abliterated model variant; that changes its refusal behavior, not its factual accuracy or safety. Treat generated code and security findings as untrusted until reviewed. The model is downloaded separately (about 1.93 GB) and is never bundled into the executable.
 
-Both profiles use the same base model: **Qwen2.5-Coder-3B-Instruct**. Quantized model files are not included in Git; download them separately from a trusted model publisher and verify their checksums.
+Model source: [tensorblock GGUF model card](https://huggingface.co/tensorblock/Qwen2.5-3B-Instruct-abliterated-GGUF). Review the model card and licensing before use.
 
-## Current status
+## Windows executable
 
-This repository starts with a runnable local foundation: a FastAPI chat UI, llama.cpp-compatible model loading, SQLite conversation memory, and a read-only source scanner for common risky code patterns. Advanced features listed below are roadmap items, not claims that they are already implemented.
+A GitHub Actions workflow builds `HackerCoderAI.exe` on Windows. After the workflow completes:
+
+1. Open the repository's **Actions** tab.
+2. Select **Build Windows EXE** and open the successful run.
+3. Under **Artifacts**, download `HackerCoderAI-Windows` and extract it.
+4. Run `HackerCoderAI.exe`. It starts the local interface at `http://127.0.0.1:8001` and opens your browser.
+
+The executable does not contain the model weights. On first setup, open a terminal in the extracted project/source directory and run:
+
+```powershell
+python -m pip install -r requirements.txt huggingface_hub
+python -m app.download_model
+```
+
+The downloaded model is stored in `data/models/`. The app uses it automatically when that file exists. Keep the model file beside the app's working data directory. A standalone distribution package with a bundled model would be roughly 2 GB larger.
+
+## Internet access
+
+Internet is used for the explicit Hugging Face model download and GitHub Actions build. The local app itself binds only to `127.0.0.1`; it does not expose its UI to the network. Live web search and fetching external pages from inside chat are not yet implemented. This avoids silently sending prompts or source code to third-party services.
 
 ## Features
 
-- Local browser UI; binds to 127.0.0.1 by default.
-- GGUF model selection via configuration (Q2_K or Q4_K_M).
+- Local browser-based chat UI, launched by the Windows executable.
+- CPU-only GGUF inference through llama.cpp.
 - Persistent local conversations and explicit `/remember` notes in SQLite.
-- Defensive source review for common risky patterns in Python, JavaScript/TypeScript, C/C++, shell, and PowerShell.
-- No telemetry, no mandatory cloud API, no automatic network scanning.
-- Clear separation between findings and confirmed vulnerabilities: static matches are leads requiring manual review.
+- Read-only heuristic source scanner for Python, JavaScript/TypeScript, C/C++, shell, and PowerShell.
+- No telemetry and no mandatory cloud API.
+- Findings are investigation leads, not confirmed vulnerabilities.
 
 ## Requirements
 
-- Python 3.10+
-- 8 GB RAM minimum recommended; 16 GB preferred.
-- CPU inference supported. No NVIDIA GPU is required.
-- A GGUF model file compatible with llama.cpp.
-- Internet is needed only to install dependencies/download a model; runtime can be offline.
+- Windows 10/11, Linux, or WSL2.
+- 16 GB RAM recommended for the 3B Q4_K_M model; CPU inference is supported.
+- Python 3.10+ for source/manual setup.
+- About 2 GB free storage for the model, plus app/runtime space.
 
-## Quick start
+## Manual setup
 
 ```bash
 python -m venv .venv
-# Windows: .venv\Scripts\activate
+# Windows: .venv\\Scripts\\activate
 # Linux / WSL: source .venv/bin/activate
 python -m pip install -r requirements.txt
-cp .env.example .env
+python -m pip install huggingface_hub
+python -m app.download_model
+python -m app.desktop
 ```
 
-Edit `.env` and set `MODEL_PATH` to your local GGUF file. Then:
+Open `http://127.0.0.1:8001` if it does not open automatically.
 
-```bash
-uvicorn app.main:app --host 127.0.0.1 --port 8001
-```
+## Defensive-use boundaries
 
-Open http://127.0.0.1:8001. The app remains usable for source scanning without a model; chat requires a configured model.
+Only scan source code you own or are authorized to assess. The scanner reads local files; it does not execute code, exploit targets, or perform network scans. Do not store passwords, API keys, tokens, or other secrets in chat memory. Do not expose the local UI to a LAN or public internet without authentication and transport security.
 
-## Model setup
+## Current status
 
-Use Qwen2.5-Coder-3B-Instruct GGUF from a publisher you trust. Place files under `models/` (the directory is git-ignored), then set:
-
-```dotenv
-MODEL_PATH=models/qwen2.5-coder-3b-instruct-q4_k_m.gguf
-MODEL_PROFILE=v4
-```
-
-For the smaller profile, use a genuine Q2_K GGUF file and set `MODEL_PROFILE=v2`. Quantization filenames vary by publisher; confirm the actual quantization in the model card rather than renaming a file.
-
-## Safety and privacy
-
-- Treat model output as suggestions, not proof.
-- Only scan source code you own or are authorized to assess.
-- The scanner reads files; it does not execute code, exploit targets, or make network requests.
-- Memory is local. Do not store passwords, API keys, tokens, or other secrets.
-- The web server binds to localhost by default. Do not expose it to a LAN or the public internet without adding authentication and transport security.
-
-## Roadmap
-
-1. Model download/checksum helper and profile validation.
-2. Improved scanner rules with tests and severity confidence.
-3. Local CVE-feed import (offline data; no implied live feed).
-4. Code workspace/editor and hardware/RAM dashboard.
-5. Exportable reports and configurable retention.
+The Windows build workflow and model downloader have been added. The executable has **not yet been built or tested**; use the Actions artifact only after a successful run. Live internet search from inside the assistant is a separate feature and is not included yet.
 
 ## License
 
