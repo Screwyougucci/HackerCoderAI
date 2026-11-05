@@ -1,0 +1,2 @@
+pyinstaller>=6.10,<7
+huggingface_hub>=0.26,<2
