@@ -1,40 +1,39 @@
 # Qill Distributed Control Center
 
-Vercel-hosted dashboard for eight independent, short-lived GitHub Actions worker VMs.
+Vercel-hosted dashboard for eight bounded GitHub Actions worker roles, with an optional authenticated Hugging Face Space worker adapter.
 
 ## Zero-cost design
 
 - Dashboard: Next.js on the existing Vercel Hobby project.
-- Workers: eight separate standard GitHub-hosted Ubuntu runners, launched in parallel from a public repository.
+- Main workers: standard GitHub-hosted Ubuntu runners, max-parallel 3, on a public repository.
 - Schedule: one bounded worker cycle every 30 minutes, plus manual dispatch.
-- Memory: checkpoint JSON committed to the dedicated qill-state branch.
-- Inference: no paid model API is called. The first release uses deterministic research, source heuristics, tests, and pattern analysis. Hugging Face and Cloudflare adapters are listed as optional future providers, not active compute.
-- Safety: source scanning is read-only; tests run in isolated ephemeral runners; no arbitrary generated shell commands, deployment, external target scanning, or automatic code changes.
+- Memory: GitHub worker checkpoint JSON is committed to the dedicated `qill-state` branch.
+- Optional Space workers: `providers/hf-space/` contains a Docker Space adapter with a three-request concurrency cap and fixed role allowlist.
+- No paid model API or Hugging Face Jobs are called.
+- Workers run bounded repository scans and tests; no arbitrary shell input or automatic code changes.
 
-GitHub documents standard hosted runners as free and unlimited for public repositories. This repository must remain public for the strict $0 compute assumption. See https://docs.github.com/en/actions/reference/runners/github-hosted-runners.
+## GitHub controls
 
-## Configure the dashboard controls
+In Vercel project `hackercoderai-remote`, root directory `remote`, configure `HACKERCODERAI_ACCESS_KEY` and `GITHUB_TOKEN`. The GitHub token should be fine-grained and scoped only to `Screwyougucci/HackerCoderAI`, with Actions read/write permission.
 
-In Vercel project hackercoderai-remote, root directory remote, add these Production environment variables:
+## Optional Hugging Face Space workers
 
-- HACKERCODERAI_ACCESS_KEY: a long random dashboard password you generate.
-- GITHUB_TOKEN: a fine-grained GitHub token scoped only to Screwyougucci/HackerCoderAI, with Actions: read and write permission. The token is used server-side to dispatch, pause, resume, and cancel workflow runs. Never put it in browser code or commit it.
+The adapter code is in `providers/hf-space/`. Create a Docker Space only if your account permits compute-backed Spaces on free CPU Basic. CPU Basic has 2 vCPU and 16 GB RAM, but free Spaces can sleep. Account eligibility for compute-backed Docker/Gradio Spaces can vary. If the UI asks for a subscription, payment method, or upgraded hardware, stop and do not enable billing.
 
-Redeploy after adding the variables. The dashboard status view reads public workflow/checkpoint metadata; control actions require the access key and token.
+Set `QILL_WORKER_KEY` as a Space secret. In Vercel, set `HF_WORKER_TOKEN` to the same secret, `HF_WORKER_A_URL` to the first Space base URL, and optionally `HF_WORKER_B_URL` to a second Space URL. Redeploy Vercel.
 
-## Worker schedule and checkpoints
+`GET /api/providers` reports Space health. Authenticated `POST /api/providers` accepts one of the eight fixed roles and tries the next Space when the previous one is unreachable or returns HTTP 429/503. It does not retry timeouts or application/authentication errors because those could duplicate work. Include `x-hackercoderai-key` with the dashboard access key.
 
-Workflow: .github/workflows/qill-workers.yml
+Space tasks return JSON to the caller and do not write durable checkpoints. The existing GitHub Actions workflow remains the scheduled runner and checkpoint writer. This is not an always-on queue; free CPU Basic Spaces may sleep.
 
-- Eight roles run in parallel: research scout, source scanner, test runner, pattern miner, validation reviewer, documentation auditor, regression watcher, intelligence synthesizer.
+## Workflow and checkpoints
+
+Workflow: `.github/workflows/qill-workers.yml`
+
+- Eight fixed roles: research scout, source scanner, test runner, pattern miner, validation reviewer, documentation auditor, regression watcher, intelligence synthesizer.
 - Each job has a five-minute hard timeout; the test command itself has a 75-second timeout.
-- The consolidation job writes the latest checkpoint and per-worker JSON to the qill-state branch.
-- Scheduled cycles run every 30 minutes. GitHub schedule events can be delayed during high load; this is recurring batch execution, not eight always-on servers.
-- Dashboard actions: start a cycle, pause/resume the schedule, and cancel active runs.
-
-## Optional providers
-
-The dashboard reserves slots for Hugging Face Spaces and Cloudflare Workers. They are standby only in this release. Activating them requires deploying those provider-specific workers in the user's own free-tier accounts and configuring authenticated endpoints. Hugging Face free Spaces can sleep and ZeroGPU has quotas; Cloudflare Workers Free is suitable for coordination/API tasks, not sustained AI inference. No provider is allowed to upgrade to paid billing automatically.
+- Consolidation writes the latest checkpoint and per-worker JSON to `qill-state`.
+- Scheduled cycles run every 30 minutes. GitHub may delay scheduled events during high load; this is recurring batch execution, not always-on compute.
 
 ## Local checks
 
