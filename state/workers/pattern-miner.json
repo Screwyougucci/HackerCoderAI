@@ -2,10 +2,21 @@
   "role": "pattern-miner",
   "label": "Pattern Miner",
   "status": "completed",
-  "startedAt": "2026-11-05T22:57:00.390210+00:00",
+  "startedAt": "2026-11-06T02:58:46.465592+00:00",
   "goal": "Review this repository for safe, authorized improvements.",
-  "patterns": [],
-  "historicalFindingCount": 0,
-  "durationSeconds": 0.12,
-  "finishedAt": "2026-11-05T22:57:00.509240+00:00"
+  "patterns": [
+    {
+      "rule": "JS-EVAL-001",
+      "file": "tests/test_scanner.py",
+      "count": 1
+    },
+    {
+      "rule": "PY-EVAL-001",
+      "file": "tests/test_scanner.py",
+      "count": 1
+    }
+  ],
+  "historicalFindingCount": 2,
+  "durationSeconds": 0.23,
+  "finishedAt": "2026-11-06T02:58:46.698865+00:00"
 }
