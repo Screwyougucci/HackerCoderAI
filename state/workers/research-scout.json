@@ -2,13 +2,13 @@
   "role": "research-scout",
   "label": "Research Scout",
   "status": "completed",
-  "startedAt": "2026-11-15T20:26:26.947977+00:00",
+  "startedAt": "2026-11-16T00:04:52.473875+00:00",
   "goal": "Review this repository for safe, authorized improvements.",
   "research": {
     "query": "secure software engineering testing Python JavaScript best practices",
     "sources": [],
-    "note": "Public search snippets only; open original sources to verify claims."
+    "note": "Research endpoint unavailable: URLError"
   },
-  "durationSeconds": 0.28,
-  "finishedAt": "2026-11-15T20:26:27.229116+00:00"
+  "durationSeconds": 0.1,
+  "finishedAt": "2026-11-16T00:04:52.574975+00:00"
 }
