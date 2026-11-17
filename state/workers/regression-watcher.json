@@ -2,13 +2,13 @@
   "role": "regression-watcher",
   "label": "Regression Watcher",
   "status": "completed",
-  "startedAt": "2026-11-17T08:36:45.810166+00:00",
+  "startedAt": "2026-11-17T17:56:41.601983+00:00",
   "goal": "Review this repository for safe, authorized improvements.",
   "regression": {
     "currentCandidates": 2,
     "newCandidates": 0,
     "previousCheckpointAvailable": true
   },
-  "durationSeconds": 0.19,
-  "finishedAt": "2026-11-17T08:36:45.995515+00:00"
+  "durationSeconds": 0.24,
+  "finishedAt": "2026-11-17T17:56:41.840933+00:00"
 }
