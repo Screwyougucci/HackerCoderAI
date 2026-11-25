@@ -2,7 +2,7 @@
   "role": "source-scanner",
   "label": "Source Scanner",
   "status": "completed",
-  "startedAt": "2026-11-25T01:08:41.609180+00:00",
+  "startedAt": "2026-11-25T09:56:34.597516+00:00",
   "goal": "Review this repository for safe, authorized improvements.",
   "findings": [
     {
@@ -22,6 +22,6 @@
       "confidence": "heuristic"
     }
   ],
-  "durationSeconds": 0.02,
-  "finishedAt": "2026-11-25T01:08:41.626142+00:00"
+  "durationSeconds": 0.01,
+  "finishedAt": "2026-11-25T09:56:34.607444+00:00"
 }
